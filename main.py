@@ -1,16 +1,44 @@
-from flask import Flask, request, jsonify
 import requests
 import json
 import re
+import datetime
+import logging
+from logging import Formatter
+from logging.handlers import RotatingFileHandler
+from difflib import get_close_matches
 
-from local import GOOGLE_API_KEY
+from flask import Flask, request, jsonify
 
-FAUL_POINTS_SHEETS_ID = '1j44T9IkLB17Ttw3X1tgd2ua4UGvyAHU65362RjSzj_w'
+from local import *
+
+DEMERIT_POINTS_SHEETS_ID = '1j44T9IkLB17Ttw3X1tgd2ua4UGvyAHU65362RjSzj_w'
 CLOSED_TIME_SHEETS_ID = '18C83ua-m67ZFB3j283Ku_b5IomjyWG6xYMAEDPXZJrw'
 GOOGLE_SHEETS_API = ('https://sheets.googleapis.com/v4/spreadsheets/'
                      '{sheets_id}/values/{range}?key={key}')
 
 app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
+handler = logging.handlers.RotatingFileHandler(
+    filename=LOG_FILENAME,
+    maxBytes=1024 * 1024 * 100,
+    backupCount=10
+)
+handler.setFormatter(Formatter(
+    '%(asctime)s %(levelname)s: %(message)s'
+    '[in %(pathname)s:%(lineno)d]'
+))
+app.logger.addHandler(handler)
+
+
+@app.before_request
+def log_request_info():
+    app.logger.info(
+        ('Headers: %s'
+         'Url: %s\n'
+         'Method: %s\n'
+         'Body: %s\n'),
+        request.headers, request.url, request.method, request.get_data()
+    )
 
 
 @app.route('/')
@@ -18,15 +46,38 @@ def hello():
     return 'Hello World!'
 
 
-@app.route('/lookup/faul_points', methods=['GET'])
-def lookup_faul_points():
+@app.route('/lookup/demerit_points', methods=['GET'])
+def lookup_demerit_points():
+    target_club = (request.args.get('club_name') or
+                   request.args.get('lookup_club_name'))
     sheet_data = requests.get(GOOGLE_SHEETS_API.format(
-        sheets_id=FAUL_POINTS_SHEETS_ID,
+        sheets_id=DEMERIT_POINTS_SHEETS_ID,
         range='A1:ZZ',
         key=GOOGLE_API_KEY
-    ))
-    print(sheet_data.json())
-    return 'yo'
+    )).json()
+
+    close_club_name = get_close_matches(
+        target_club, [row[0] for row in sheet_data['values']],
+        n=1, cutoff=0.4)
+
+    text = ''
+    if close_club_name == []:
+        text = '此社團違規為0點，或輸入之社團名稱錯誤，請輸入完整名稱再試'
+    else:
+        close_club_name = close_club_name[0]
+        text = '以下為「{}」的違規記點\n\n'.format(close_club_name)
+
+        close_club_row = next(
+            row for row in sheet_data['values'] if row[0] == close_club_name)
+
+        for idx, point in enumerate(close_club_row[1:]):
+            if point:
+                text += '{time}: {point}\n'.format(
+                    time=sheet_data['values'][0][idx+1],
+                    point=point
+                )
+
+    return jsonify({'messages': [{'text': text}]})
 
 
 @app.route('/lookup/closed_time', methods=['GET'])
@@ -55,10 +106,10 @@ def lookup_closed_time():
     else:
         text = "在這區間的日期，目前皆為無延長(正常閉館時間)"
 
-    response = jsonify({'messages': [{'text': text}]})
-    return response
+    return jsonify({'messages': [{'text': text}]})
 
 
+# Format yyyy/mm/dd as [y, m, d]
 def formatted_date(date):
     result = re.match(r'(\d+)/(\d+)/(\d+)', date)
     if result:
@@ -71,6 +122,7 @@ def formatted_date(date):
         return False
 
 
+# Format yyyy/mm/dd-dd as [y, m, [d, d]]
 def formatted_date_interval(year_and_month, day_interval):
     result = re.match(r'(\d+)/(\d+)', year_and_month)
     result_day = re.match(r'(\d+)-(\d+)', day_interval)
