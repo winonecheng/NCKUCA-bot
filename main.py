@@ -9,17 +9,16 @@ from difflib import get_close_matches
 
 from flask import Flask, request, jsonify
 
-from local import *
-
 DEMERIT_POINTS_SHEETS_ID = '1j44T9IkLB17Ttw3X1tgd2ua4UGvyAHU65362RjSzj_w'
 CLOSED_TIME_SHEETS_ID = '18C83ua-m67ZFB3j283Ku_b5IomjyWG6xYMAEDPXZJrw'
 GOOGLE_SHEETS_API = ('https://sheets.googleapis.com/v4/spreadsheets/'
                      '{sheets_id}/values/{range}?key={key}')
 
 app = Flask(__name__)
+app.config.from_envvar('YOURAPPLICATION_SETTINGS')
 app.logger.setLevel(logging.INFO)
 handler = logging.handlers.RotatingFileHandler(
-    filename=LOG_FILENAME,
+    filename=app.config['LOG_FILENAME'],
     maxBytes=1024 * 1024 * 100,
     backupCount=10
 )
@@ -53,7 +52,7 @@ def lookup_demerit_points():
     sheet_data = requests.get(GOOGLE_SHEETS_API.format(
         sheets_id=DEMERIT_POINTS_SHEETS_ID,
         range='A1:ZZ',
-        key=GOOGLE_API_KEY
+        key=app.config['GOOGLE_API_KEY']
     )).json()
 
     close_club_name = get_close_matches(
@@ -87,7 +86,7 @@ def lookup_closed_time():
     sheet_data = requests.get(GOOGLE_SHEETS_API.format(
         sheets_id=CLOSED_TIME_SHEETS_ID,
         range='A1:ZZ',
-        key=GOOGLE_API_KEY
+        key=app.config['GOOGLE_API_KEY']
     )).json()
 
     date_interval = formatted_date_interval(year_and_month, day_interval)
