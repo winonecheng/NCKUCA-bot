@@ -57,7 +57,7 @@ def lookup_demerit_points():
 
     close_club_name = get_close_matches(
         target_club, [row[0] for row in sheet_data['values']],
-        n=1, cutoff=0.4)
+        n=1, cutoff=0.6)
 
     text = ''
     if close_club_name == []:
