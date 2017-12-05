@@ -147,7 +147,10 @@ def find_target_date(sheet_data, interval):
                 date[1] == interval[1] and date[2] >= interval[2][0]):
             pre_idx = idx
 
-        if pre_idx and date[2] > interval[2][1]:
+        if (pre_idx and
+            (date[2] > interval[2][1] or
+             date[0] != interval[0] or
+             date[1] != interval[1])):
             post_idx = idx
             break
 
