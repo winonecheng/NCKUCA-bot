@@ -75,6 +75,8 @@ def lookup_demerit_points():
                     time=sheet_data['values'][0][idx+1],
                     point=point
                 )
+        text += '---\n'
+        text += 'P.S.如果查詢到的社團與想查的社團名稱不符合，代表該社團沒有違規記點'
 
     return jsonify({'messages': [{'text': text}]})
 
